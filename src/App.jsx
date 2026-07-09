@@ -20,7 +20,7 @@ import {
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -496,6 +496,7 @@ function SearchBox({ value, onChange, placeholder }) {
 
 function DataTable({ tableId, title, rows, columns, defaultColumnKeys, search, onSearch, emptyText, onExport }) {
   const storageKey = `locomo-columns-${tableId}`;
+  const columnPickerRef = useRef(null);
   const [visibleColumnKeys, setVisibleColumnKeys] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
@@ -511,6 +512,7 @@ function DataTable({ tableId, title, rows, columns, defaultColumnKeys, search, o
   }, [columns, visibleColumnKeys]);
   const [sort, setSort] = useState({ key: visibleColumns[0]?.key, direction: "asc" });
   const [page, setPage] = useState(1);
+  const [columnsOpen, setColumnsOpen] = useState(false);
 
   useEffect(() => {
     setPage(1);
@@ -525,6 +527,29 @@ function DataTable({ tableId, title, rows, columns, defaultColumnKeys, search, o
       setSort({ key: visibleColumns[0]?.key, direction: "asc" });
     }
   }, [sort.key, visibleColumns]);
+
+  useEffect(() => {
+    if (!columnsOpen) return undefined;
+
+    function handlePointerDown(event) {
+      if (!columnPickerRef.current?.contains(event.target)) {
+        setColumnsOpen(false);
+      }
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        setColumnsOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [columnsOpen]);
 
   const sortedRows = useMemo(() => {
     const column = visibleColumns.find((item) => item.key === sort.key) || visibleColumns[0];
@@ -583,42 +608,50 @@ function DataTable({ tableId, title, rows, columns, defaultColumnKeys, search, o
             <Download size={17} />
             CSV
           </button>
-          <details className="relative">
-            <summary className="inline-flex h-11 cursor-pointer list-none items-center justify-center gap-2 rounded-md border border-slate-200 px-4 text-sm font-bold text-slate-800 transition hover:border-teal-400 hover:text-teal-700 dark:border-slate-700 dark:text-slate-100 dark:hover:border-teal-500 dark:hover:text-teal-200">
+          <div ref={columnPickerRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setColumnsOpen((open) => !open)}
+              aria-expanded={columnsOpen}
+              aria-haspopup="menu"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-200 px-4 text-sm font-bold text-slate-800 transition hover:border-teal-400 hover:text-teal-700 dark:border-slate-700 dark:text-slate-100 dark:hover:border-teal-500 dark:hover:text-teal-200"
+            >
               <Columns3 size={17} />
               Columns
-            </summary>
-            <div className="absolute right-0 z-20 mt-2 max-h-96 w-72 overflow-auto rounded-lg border border-slate-200 bg-white p-3 shadow-panel dark:border-slate-700 dark:bg-slate-950">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-xs font-bold uppercase tracking-normal text-slate-500 dark:text-slate-400">
-                  {visibleColumns.length}/{columns.length} visible
-                </p>
-                <button
-                  type="button"
-                  onClick={showAllColumns}
-                  className="text-xs font-bold text-teal-700 hover:text-teal-900 dark:text-teal-300 dark:hover:text-teal-100"
-                >
-                  Show all
-                </button>
-              </div>
-              <div className="grid gap-1">
-                {columns.map((column) => (
-                  <label
-                    key={column.key}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900"
+            </button>
+            {columnsOpen ? (
+              <div className="absolute right-0 z-20 mt-2 max-h-96 w-72 overflow-auto rounded-lg border border-slate-200 bg-white p-3 shadow-panel dark:border-slate-700 dark:bg-slate-950">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold uppercase tracking-normal text-slate-500 dark:text-slate-400">
+                    {visibleColumns.length}/{columns.length} visible
+                  </p>
+                  <button
+                    type="button"
+                    onClick={showAllColumns}
+                    className="text-xs font-bold text-teal-700 hover:text-teal-900 dark:text-teal-300 dark:hover:text-teal-100"
                   >
-                    <input
-                      type="checkbox"
-                      checked={visibleColumnKeys.includes(column.key)}
-                      onChange={() => toggleColumn(column.key)}
-                      className="h-4 w-4 accent-teal-700"
-                    />
-                    {column.label}
-                  </label>
-                ))}
+                    Show all
+                  </button>
+                </div>
+                <div className="grid gap-1">
+                  {columns.map((column) => (
+                    <label
+                      key={column.key}
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={visibleColumnKeys.includes(column.key)}
+                        onChange={() => toggleColumn(column.key)}
+                        className="h-4 w-4 accent-teal-700"
+                      />
+                      {column.label}
+                    </label>
+                  ))}
+                </div>
               </div>
-            </div>
-          </details>
+            ) : null}
+          </div>
         </div>
       </div>
       <div className="max-w-full overflow-x-auto overscroll-x-contain">
