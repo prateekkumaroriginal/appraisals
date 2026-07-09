@@ -593,7 +593,7 @@ function App() {
   const [token, setToken] = useState(() => sessionStorage.getItem("locomo-token") || "");
   const [apiMode, setApiMode] = useState("proxy");
   const [feedbackEndpoint, setFeedbackEndpoint] = useState("/employeeprojectfeedback");
-  const [appraisalsEndpoint, setAppraisalsEndpoint] = useState("/appraisals");
+  const [appraisalsEndpoint, setAppraisalsEndpoint] = useState("/employeehrappraisal");
   const [appraisalsQuery, setAppraisalsQuery] = useState("");
   const [feedbackRows, setFeedbackRows] = useState([]);
   const [appraisalRows, setAppraisalRows] = useState([]);
