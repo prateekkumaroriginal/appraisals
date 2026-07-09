@@ -105,9 +105,37 @@ function ensureApiPath(value, fallback) {
 }
 
 function pathWithQuery(path, query) {
-  const trimmed = query.trim().replace(/^\?/, "");
+  const trimmed = normalizeQuery(query);
   if (!trimmed) return path;
   return path.includes("?") ? `${path}&${trimmed}` : `${path}?${trimmed}`;
+}
+
+function normalizeQuery(query) {
+  const trimmed = query.trim().replace(/^\?/, "");
+  if (!trimmed) return "";
+
+  const fepMatch = trimmed.match(/^fep\s*=\s*([\s\S]*)$/i);
+  const fepValue = fepMatch ? fepMatch[1].trim() : trimmed.startsWith("{") ? trimmed : "";
+  if (fepValue) {
+    try {
+      const compactJson = JSON.stringify(JSON.parse(fepValue));
+      return `fep=${encodeURIComponent(compactJson)}`;
+    } catch {
+      return `fep=${encodeURIComponent(fepValue)}`;
+    }
+  }
+
+  return trimmed
+    .split("&")
+    .filter(Boolean)
+    .map((part) => {
+      const separatorIndex = part.indexOf("=");
+      if (separatorIndex === -1) return encodeURIComponent(part.trim());
+      const key = part.slice(0, separatorIndex).trim();
+      const value = part.slice(separatorIndex + 1).trim();
+      return `${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+    })
+    .join("&");
 }
 
 async function fetchJson(path, token, apiMode) {
@@ -809,7 +837,7 @@ function App() {
                 <input
                   value={appraisalsQuery}
                   onChange={(event) => setAppraisalsQuery(event.target.value)}
-                  placeholder="fep=..."
+                  placeholder='Paste fep={...} or just {...}'
                   className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-teal-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                 />
               </label>
