@@ -61,6 +61,39 @@ const chartHoverCursor = { fill: "rgba(15, 118, 110, 0.14)" };
 
 const tablePageSize = 25;
 
+const hiddenRawFieldKeys = new Set([
+  "__v",
+  "_id",
+  "approved_by_unit_ph",
+  "createdBy",
+  "employee",
+  "employee_people_manager",
+  "employee_salary_component",
+  "new_employee_people_manager",
+  "practice_head",
+  "processed_manually_by_hr",
+  "promotion_designation",
+  "technology_by_unit_head",
+  "unit_promotion_designation",
+  "updatedAt",
+  "updatedBy",
+]);
+
+const hiddenRawFieldPrefixes = [
+  "attachment.",
+  "current_offer_letter.",
+  "increment_letter_latest.",
+];
+
+function isVisibleRawField(key) {
+  if (hiddenRawFieldKeys.has(key)) return false;
+  if (key === "id" || key.endsWith(".id")) return false;
+  if (key === "key" || key.endsWith(".key")) return false;
+  if (key.endsWith("._id")) return false;
+  if (key.endsWith(".metadata.bucketName")) return false;
+  return !hiddenRawFieldPrefixes.some((prefix) => key.startsWith(prefix));
+}
+
 function asArray(payload) {
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload?.data)) return payload.data;
@@ -117,6 +150,7 @@ function buildColumnsWithRawFields(defaultColumns, rows) {
   });
 
   const rawColumns = [...rawKeys]
+    .filter(isVisibleRawField)
     .filter((key) => !existingKeys.has(`raw:${key}`))
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
     .map((key) => ({
