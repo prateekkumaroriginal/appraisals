@@ -75,6 +75,64 @@ function clean(value, fallback = "") {
   return value;
 }
 
+function flattenRecord(value, prefix = "", output = {}) {
+  if (value === null || value === undefined) {
+    output[prefix] = "";
+    return output;
+  }
+
+  if (value instanceof Date) {
+    output[prefix] = shortDate(value);
+    return output;
+  }
+
+  if (Array.isArray(value)) {
+    output[prefix] = value
+      .map((item) => {
+        if (item === null || item === undefined) return "";
+        if (typeof item === "object") return JSON.stringify(item);
+        return String(item);
+      })
+      .join("; ");
+    return output;
+  }
+
+  if (typeof value === "object") {
+    Object.entries(value).forEach(([key, nestedValue]) => {
+      flattenRecord(nestedValue, prefix ? `${prefix}.${key}` : key, output);
+    });
+    return output;
+  }
+
+  output[prefix] = value;
+  return output;
+}
+
+function buildColumnsWithRawFields(defaultColumns, rows) {
+  const existingKeys = new Set(defaultColumns.map((column) => column.key));
+  const rawKeys = new Set();
+
+  rows.forEach((row) => {
+    Object.keys(row.rawFlat || {}).forEach((key) => rawKeys.add(key));
+  });
+
+  const rawColumns = [...rawKeys]
+    .filter((key) => !existingKeys.has(`raw:${key}`))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    .map((key) => ({
+      key: `raw:${key}`,
+      label: key,
+      value: (row) => row.rawFlat?.[key] ?? "",
+      render: (row) => {
+        const value = row.rawFlat?.[key];
+        if (typeof value === "boolean") return value ? "true" : "false";
+        return value ?? "";
+      },
+    }));
+
+  return [...defaultColumns, ...rawColumns];
+}
+
 function numberOrNull(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : null;
@@ -91,17 +149,6 @@ function normalizeToken(token) {
   const trimmed = token.trim();
   if (!trimmed) return "";
   return /^bearer\s+/i.test(trimmed) ? trimmed : `Bearer ${trimmed}`;
-}
-
-function ensureApiPath(value, fallback) {
-  const trimmed = value.trim();
-  if (!trimmed) return fallback;
-  try {
-    const url = new URL(trimmed);
-    return `${url.pathname}${url.search}`;
-  } catch {
-    return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
-  }
 }
 
 async function fetchJson(path, token) {
@@ -150,6 +197,7 @@ function normalizeFeedback(record) {
     submittedOn: shortDate(record.submitted_on),
     projectStartDate: shortDate(record.project_start_date),
     projectEndDate: shortDate(record.project_end_date),
+    rawFlat: flattenRecord(record),
   };
 }
 
@@ -230,6 +278,7 @@ function normalizeAppraisal(record, employeeIndex) {
         record.question_3_feedback ||
         record.question_4_feedback,
     ),
+    rawFlat: flattenRecord(record),
   };
 }
 
@@ -304,7 +353,11 @@ function uniqueOptions(rows, key) {
 function matchesSearch(row, query) {
   if (!query.trim()) return true;
   const needle = query.toLowerCase();
-  return Object.values(row).some((value) => String(value ?? "").toLowerCase().includes(needle));
+  const normalizedMatch = Object.entries(row)
+    .filter(([key]) => key !== "rawFlat")
+    .some(([, value]) => String(value ?? "").toLowerCase().includes(needle));
+  if (normalizedMatch) return true;
+  return Object.values(row.rawFlat || {}).some((value) => String(value ?? "").toLowerCase().includes(needle));
 }
 
 function utilisationBucket(value) {
@@ -407,7 +460,7 @@ function SearchBox({ value, onChange, placeholder }) {
   );
 }
 
-function DataTable({ tableId, title, rows, columns, search, onSearch, emptyText, onExport }) {
+function DataTable({ tableId, title, rows, columns, defaultColumnKeys, search, onSearch, emptyText, onExport }) {
   const storageKey = `locomo-columns-${tableId}`;
   const [visibleColumnKeys, setVisibleColumnKeys] = useState(() => {
     try {
@@ -416,7 +469,7 @@ function DataTable({ tableId, title, rows, columns, search, onSearch, emptyText,
     } catch {
       // Ignore malformed local preferences.
     }
-    return columns.map((column) => column.key);
+    return defaultColumnKeys?.length ? defaultColumnKeys : columns.map((column) => column.key);
   });
   const visibleColumns = useMemo(() => {
     const visible = columns.filter((column) => visibleColumnKeys.includes(column.key));
@@ -634,12 +687,9 @@ function DistributionBar({ data }) {
 function App() {
   const [themeMode, setThemeMode] = useThemeMode();
   const [token, setToken] = useState(() => sessionStorage.getItem("locomo-token") || "");
-  const [feedbackEndpoint, setFeedbackEndpoint] = useState("/employeeprojectfeedback");
-  const [appraisalsEndpoint, setAppraisalsEndpoint] = useState("/appraisals");
   const [feedbackRows, setFeedbackRows] = useState([]);
   const [appraisalRows, setAppraisalRows] = useState([]);
   const [errors, setErrors] = useState([]);
-  const [lastFetched, setLastFetched] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeView, setActiveView] = useState("overview");
   const [feedbackSearch, setFeedbackSearch] = useState("");
@@ -671,11 +721,9 @@ function App() {
     }
     setLoading(true);
     setErrors([]);
-    const feedbackPath = ensureApiPath(feedbackEndpoint, "/employeeprojectfeedback");
-    const appraisalPath = ensureApiPath(appraisalsEndpoint, "/appraisals");
     const [feedbackResult, appraisalsResult] = await Promise.allSettled([
-      fetchJson(feedbackPath, token),
-      fetchJson(appraisalPath, token),
+      fetchJson("/employeeprojectfeedback", token),
+      fetchJson("/appraisals", token),
     ]);
 
     const nextErrors = [];
@@ -695,7 +743,6 @@ function App() {
     }
 
     setErrors(nextErrors);
-    setLastFetched(new Date().toLocaleString());
     setLoading(false);
   }
 
@@ -759,7 +806,7 @@ function App() {
     });
   }, [appraisalRows, appraisalSearch, appraisalFilters]);
 
-  const feedbackColumns = [
+  const feedbackDefaultColumns = useMemo(() => [
     { key: "employee", label: "Employee", value: employeeLabel, render: (row) => <strong>{employeeLabel(row)}</strong> },
     { key: "project", label: "Project", value: (row) => row.project },
     { key: "rating", label: "Rating", value: (row) => row.rating, render: (row) => <Pill tone={row.rating === "A+" || row.rating === "A" ? "good" : row.rating === "(blank)" ? "neutral" : "warn"}>{row.rating}</Pill> },
@@ -769,9 +816,9 @@ function App() {
     { key: "language", label: "Skill", value: (row) => row.resourceLanguage },
     { key: "manager", label: "Manager", value: (row) => row.reportingManager },
     { key: "practiceHead", label: "Practice Head", value: (row) => row.practiceHead },
-  ];
+  ], []);
 
-  const appraisalColumns = [
+  const appraisalDefaultColumns = useMemo(() => [
     { key: "employee", label: "Employee", value: employeeLabel, render: (row) => <strong>{employeeLabel(row)}</strong> },
     { key: "effective", label: "Effective", value: (row) => row.effectiveDate },
     { key: "department", label: "Department", value: (row) => row.departmentType },
@@ -782,7 +829,24 @@ function App() {
     { key: "workflow", label: "Workflow", value: (row) => [row.selfDone, row.managerDone, row.peopleManagerDone, row.unitDone, row.payrollDone].filter(Boolean).length, render: (row) => `${[row.selfDone, row.managerDone, row.peopleManagerDone, row.unitDone, row.payrollDone].filter(Boolean).length}/5` },
     { key: "status", label: "Status", value: (row) => row.status },
     { key: "agreement", label: "Increment", value: (row) => row.incrementAgreement },
-  ];
+  ], []);
+
+  const feedbackColumns = useMemo(
+    () => buildColumnsWithRawFields(feedbackDefaultColumns, feedbackRows),
+    [feedbackDefaultColumns, feedbackRows],
+  );
+  const appraisalColumns = useMemo(
+    () => buildColumnsWithRawFields(appraisalDefaultColumns, appraisalRows),
+    [appraisalDefaultColumns, appraisalRows],
+  );
+  const feedbackDefaultColumnKeys = useMemo(
+    () => feedbackDefaultColumns.map((column) => column.key),
+    [feedbackDefaultColumns],
+  );
+  const appraisalDefaultColumnKeys = useMemo(
+    () => appraisalDefaultColumns.map((column) => column.key),
+    [appraisalDefaultColumns],
+  );
 
   return (
     <main className="min-h-screen bg-slate-100 text-slate-950 dark:bg-slate-950 dark:text-white">
@@ -847,29 +911,7 @@ function App() {
               Fetch data
             </button>
           </div>
-          <details className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
-            <summary className="cursor-pointer text-sm font-bold text-slate-700 dark:text-slate-200">Endpoint options</summary>
-            <div className="mt-3 grid gap-3 lg:grid-cols-2">
-              <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
-                Feedback endpoint
-                <input
-                  value={feedbackEndpoint}
-                  onChange={(event) => setFeedbackEndpoint(event.target.value)}
-                  className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-teal-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                />
-              </label>
-              <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
-                Appraisals endpoint
-                <input
-                  value={appraisalsEndpoint}
-                  onChange={(event) => setAppraisalsEndpoint(event.target.value)}
-                  className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-teal-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                />
-              </label>
-            </div>
-          </details>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            {lastFetched ? <Pill tone="good"><CheckCircle2 className="mr-1" size={13} />Fetched {lastFetched}</Pill> : <Pill>Waiting for data</Pill>}
             <Pill>{formatNumber(feedbackRows.length)} feedback rows</Pill>
             <Pill>{formatNumber(appraisalRows.length)} appraisal rows</Pill>
             {errors.map((error) => (
@@ -1018,6 +1060,7 @@ function App() {
               title="Project feedback"
               rows={filteredFeedback}
               columns={feedbackColumns}
+              defaultColumnKeys={feedbackDefaultColumnKeys}
               search={feedbackSearch}
               onSearch={setFeedbackSearch}
               emptyText="No feedback rows match the current search and filters."
@@ -1039,6 +1082,7 @@ function App() {
               title="Appraisals"
               rows={filteredAppraisals}
               columns={appraisalColumns}
+              defaultColumnKeys={appraisalDefaultColumnKeys}
               search={appraisalSearch}
               onSearch={setAppraisalSearch}
               emptyText="No appraisal rows match the current search and filters."
