@@ -5,6 +5,7 @@ import {
   ArrowUp,
   BarChart3,
   CheckCircle2,
+  Columns3,
   Database,
   Download,
   Filter,
@@ -411,16 +412,40 @@ function SearchBox({ value, onChange, placeholder }) {
   );
 }
 
-function DataTable({ title, rows, columns, search, onSearch, emptyText, onExport }) {
-  const [sort, setSort] = useState({ key: columns[0]?.key, direction: "asc" });
+function DataTable({ tableId, title, rows, columns, search, onSearch, emptyText, onExport }) {
+  const storageKey = `locomo-columns-${tableId}`;
+  const [visibleColumnKeys, setVisibleColumnKeys] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+      if (Array.isArray(saved) && saved.length) return saved;
+    } catch {
+      // Ignore malformed local preferences.
+    }
+    return columns.map((column) => column.key);
+  });
+  const visibleColumns = useMemo(() => {
+    const visible = columns.filter((column) => visibleColumnKeys.includes(column.key));
+    return visible.length ? visible : columns;
+  }, [columns, visibleColumnKeys]);
+  const [sort, setSort] = useState({ key: visibleColumns[0]?.key, direction: "asc" });
   const [page, setPage] = useState(1);
 
   useEffect(() => {
     setPage(1);
   }, [rows, search]);
 
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(visibleColumnKeys));
+  }, [storageKey, visibleColumnKeys]);
+
+  useEffect(() => {
+    if (!visibleColumns.some((column) => column.key === sort.key)) {
+      setSort({ key: visibleColumns[0]?.key, direction: "asc" });
+    }
+  }, [sort.key, visibleColumns]);
+
   const sortedRows = useMemo(() => {
-    const column = columns.find((item) => item.key === sort.key) || columns[0];
+    const column = visibleColumns.find((item) => item.key === sort.key) || visibleColumns[0];
     if (!column) return rows;
     const direction = sort.direction === "asc" ? 1 : -1;
     return [...rows].sort((a, b) => {
@@ -429,7 +454,7 @@ function DataTable({ title, rows, columns, search, onSearch, emptyText, onExport
       if (typeof aValue === "number" && typeof bValue === "number") return (aValue - bValue) * direction;
       return String(aValue ?? "").localeCompare(String(bValue ?? ""), undefined, { numeric: true }) * direction;
     });
-  }, [rows, columns, sort]);
+  }, [rows, visibleColumns, sort]);
 
   const totalPages = Math.max(1, Math.ceil(sortedRows.length / tablePageSize));
   const pageRows = sortedRows.slice((page - 1) * tablePageSize, page * tablePageSize);
@@ -442,8 +467,21 @@ function DataTable({ title, rows, columns, search, onSearch, emptyText, onExport
     );
   }
 
+  function toggleColumn(key) {
+    setVisibleColumnKeys((current) => {
+      if (current.includes(key)) {
+        return current.length === 1 ? current : current.filter((item) => item !== key);
+      }
+      return [...current, key];
+    });
+  }
+
+  function showAllColumns() {
+    setVisibleColumnKeys(columns.map((column) => column.key));
+  }
+
   return (
-    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+    <section className="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
       <div className="flex flex-col gap-3 border-b border-slate-200 p-4 dark:border-slate-800 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="font-display text-xl font-bold text-slate-950 dark:text-white">{title}</h2>
@@ -455,7 +493,7 @@ function DataTable({ title, rows, columns, search, onSearch, emptyText, onExport
           </div>
           <button
             type="button"
-            onClick={() => onExport(sortedRows)}
+            onClick={() => onExport(sortedRows, visibleColumns)}
             disabled={!sortedRows.length}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-200 px-4 text-sm font-bold text-slate-800 transition hover:border-teal-400 hover:text-teal-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-100 dark:hover:border-teal-500 dark:hover:text-teal-200"
             title="Export visible rows"
@@ -463,13 +501,49 @@ function DataTable({ title, rows, columns, search, onSearch, emptyText, onExport
             <Download size={17} />
             CSV
           </button>
+          <details className="relative">
+            <summary className="inline-flex h-11 cursor-pointer list-none items-center justify-center gap-2 rounded-md border border-slate-200 px-4 text-sm font-bold text-slate-800 transition hover:border-teal-400 hover:text-teal-700 dark:border-slate-700 dark:text-slate-100 dark:hover:border-teal-500 dark:hover:text-teal-200">
+              <Columns3 size={17} />
+              Columns
+            </summary>
+            <div className="absolute right-0 z-20 mt-2 max-h-96 w-72 overflow-auto rounded-lg border border-slate-200 bg-white p-3 shadow-panel dark:border-slate-700 dark:bg-slate-950">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-xs font-bold uppercase tracking-normal text-slate-500 dark:text-slate-400">
+                  {visibleColumns.length}/{columns.length} visible
+                </p>
+                <button
+                  type="button"
+                  onClick={showAllColumns}
+                  className="text-xs font-bold text-teal-700 hover:text-teal-900 dark:text-teal-300 dark:hover:text-teal-100"
+                >
+                  Show all
+                </button>
+              </div>
+              <div className="grid gap-1">
+                {columns.map((column) => (
+                  <label
+                    key={column.key}
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={visibleColumnKeys.includes(column.key)}
+                      onChange={() => toggleColumn(column.key)}
+                      className="h-4 w-4 accent-teal-700"
+                    />
+                    {column.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </details>
         </div>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200 text-left text-sm dark:divide-slate-800">
           <thead className="bg-slate-50 text-xs uppercase tracking-normal text-slate-500 dark:bg-slate-900 dark:text-slate-400">
             <tr>
-              {columns.map((column) => (
+              {visibleColumns.map((column) => (
                 <th key={column.key} className="whitespace-nowrap px-4 py-3">
                   <button
                     type="button"
@@ -492,7 +566,7 @@ function DataTable({ title, rows, columns, search, onSearch, emptyText, onExport
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {pageRows.map((row) => (
               <tr key={row.id} className="align-top transition hover:bg-slate-50 dark:hover:bg-slate-900/70">
-                {columns.map((column) => (
+                {visibleColumns.map((column) => (
                   <td key={column.key} className="max-w-72 px-4 py-3 text-slate-700 dark:text-slate-200">
                     {column.render ? column.render(row) : column.value(row)}
                   </td>
@@ -953,13 +1027,14 @@ function App() {
               <SelectControl label="Project" value={feedbackFilters.project} onChange={(value) => setFeedbackFilters((current) => ({ ...current, project: value }))} options={["all", ...uniqueOptions(feedbackRows, "project")]} />
             </section>
             <DataTable
+              tableId="feedback"
               title="Project feedback"
               rows={filteredFeedback}
               columns={feedbackColumns}
               search={feedbackSearch}
               onSearch={setFeedbackSearch}
               emptyText="No feedback rows match the current search and filters."
-              onExport={(rows) => downloadCsv("project-feedback.csv", rows, feedbackColumns)}
+              onExport={(rows, visibleColumns) => downloadCsv("project-feedback.csv", rows, visibleColumns)}
             />
           </div>
         ) : null}
@@ -973,13 +1048,14 @@ function App() {
               <SelectControl label="Utilisation" value={appraisalFilters.utilisation} onChange={(value) => setAppraisalFilters((current) => ({ ...current, utilisation: value }))} options={["all", "Missing", "Zero", "Below 50", "50 to 100", "Above 100"]} />
             </section>
             <DataTable
+              tableId="appraisals"
               title="Appraisals"
               rows={filteredAppraisals}
               columns={appraisalColumns}
               search={appraisalSearch}
               onSearch={setAppraisalSearch}
               emptyText="No appraisal rows match the current search and filters."
-              onExport={(rows) => downloadCsv("appraisals.csv", rows, appraisalColumns)}
+              onExport={(rows, visibleColumns) => downloadCsv("appraisals.csv", rows, visibleColumns)}
             />
           </div>
         ) : null}
