@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/locomo/:path*",
+      "destination": "https://apiv6.locomo.io/:path*"
+    }
+  ]
+}

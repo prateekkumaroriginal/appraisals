@@ -38,6 +38,8 @@ const API_MODES = {
   direct: "https://apiv6.locomo.io",
 };
 
+const apiModeOptions = import.meta.env.PROD ? ["proxy"] : ["proxy", "direct"];
+
 const ratingOrder = {
   "A+": 6,
   A: 5,
@@ -770,7 +772,7 @@ function App() {
               icon={Database}
               value={apiMode}
               onChange={setApiMode}
-              options={["proxy", "direct"]}
+              options={apiModeOptions}
             />
             <button
               type="button"
