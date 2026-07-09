@@ -563,7 +563,7 @@ function DataTable({ tableId, title, rows, columns, defaultColumnKeys, search, o
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+    <section className="min-w-0 max-w-full rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
       <div className="flex flex-col gap-3 border-b border-slate-200 p-4 dark:border-slate-800 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="font-display text-xl font-bold text-slate-950 dark:text-white">{title}</h2>
@@ -621,8 +621,8 @@ function DataTable({ tableId, title, rows, columns, defaultColumnKeys, search, o
           </details>
         </div>
       </div>
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-left text-sm dark:divide-slate-800">
+      <div className="max-w-full overflow-x-auto overscroll-x-contain">
+        <table className="w-max min-w-full divide-y divide-slate-200 text-left text-sm dark:divide-slate-800">
           <thead className="bg-slate-50 text-xs uppercase tracking-normal text-slate-500 dark:bg-slate-900 dark:text-slate-400">
             <tr>
               {visibleColumns.map((column) => (
@@ -649,8 +649,10 @@ function DataTable({ tableId, title, rows, columns, defaultColumnKeys, search, o
             {pageRows.map((row) => (
               <tr key={row.id} className="align-top transition hover:bg-slate-50 dark:hover:bg-slate-900/70">
                 {visibleColumns.map((column) => (
-                  <td key={column.key} className="max-w-72 px-4 py-3 text-slate-700 dark:text-slate-200">
-                    {column.render ? column.render(row) : column.value(row)}
+                  <td key={column.key} className="max-w-72 whitespace-nowrap px-4 py-3 text-slate-700 dark:text-slate-200">
+                    <div className="max-w-72 overflow-hidden text-ellipsis">
+                      {column.render ? column.render(row) : column.value(row)}
+                    </div>
                   </td>
                 ))}
               </tr>
@@ -1082,7 +1084,7 @@ function App() {
         ) : null}
 
         {activeView === "feedback" ? (
-          <div className="grid gap-4">
+          <div className="grid min-w-0 gap-4">
             <section className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950 sm:grid-cols-2 lg:grid-cols-4">
               <SelectControl label="Rating" value={feedbackFilters.rating} onChange={(value) => setFeedbackFilters((current) => ({ ...current, rating: value }))} options={["all", ...uniqueOptions(feedbackRows, "rating")]} />
               <SelectControl label="Financial year" value={feedbackFilters.financialYear} onChange={(value) => setFeedbackFilters((current) => ({ ...current, financialYear: value }))} options={["all", ...uniqueOptions(feedbackRows, "financialYear")]} />
@@ -1104,7 +1106,7 @@ function App() {
         ) : null}
 
         {activeView === "appraisals" ? (
-          <div className="grid gap-4">
+          <div className="grid min-w-0 gap-4">
             <section className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950 sm:grid-cols-2 lg:grid-cols-4">
               <SelectControl label="Rating" value={appraisalFilters.rating} onChange={(value) => setAppraisalFilters((current) => ({ ...current, rating: value }))} options={["all", ...uniqueOptions(appraisalRows, "overallRating")]} />
               <SelectControl label="Department" value={appraisalFilters.departmentType} onChange={(value) => setAppraisalFilters((current) => ({ ...current, departmentType: value }))} options={["all", ...uniqueOptions(appraisalRows, "departmentType")]} />
