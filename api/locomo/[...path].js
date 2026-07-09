@@ -28,11 +28,15 @@ export default async function handler(req, res) {
     return;
   }
 
-  const path = Array.isArray(req.query.path) ? req.query.path.join("/") : req.query.path || "";
-  const query = new URLSearchParams(req.query);
-  query.delete("path");
+  const requestUrl = new URL(req.url || "", `https://${req.headers.host || "localhost"}`);
+  const path = getLocomoPath(req, requestUrl);
+  if (!path) {
+    setCorsHeaders(res);
+    res.status(400).json({ message: "Missing Locomo API path." });
+    return;
+  }
 
-  const upstreamUrl = `${LOCOMO_BASE_URL}/${path}${query.size ? `?${query.toString()}` : ""}`;
+  const upstreamUrl = `${LOCOMO_BASE_URL}/${path}${requestUrl.search}`;
   const upstream = await fetch(upstreamUrl, {
     method: "GET",
     headers: {
@@ -65,6 +69,16 @@ export default async function handler(req, res) {
   }
 
   Readable.fromWeb(upstream.body).pipe(res);
+}
+
+function getLocomoPath(req, requestUrl) {
+  const queryPath = req.query?.path;
+  if (Array.isArray(queryPath) && queryPath.length) return queryPath.join("/");
+  if (typeof queryPath === "string" && queryPath) return queryPath;
+
+  return requestUrl.pathname
+    .replace(/^\/api\/locomo\/?/, "")
+    .replace(/^\/+/, "");
 }
 
 function setCorsHeaders(res) {
