@@ -1,0 +1,16 @@
+node_modules/
+dist/
+*.log
+*.err
+.env
+.env.*
+
+employeeprojectfeedback.json
+employeeprojectfeedback_flat.csv
+employeeprojectfeedback_summary.json
+employeeprojectfeedback_deep_analysis.json
+appraisals.json
+appraisals_flat.csv
+appraisals_analysis.json
+appraisals_joined_feedback.csv
+locomo-main.js
