@@ -38,12 +38,6 @@ const API_MODES = {
   direct: "https://apiv6.locomo.io",
 };
 
-const APPRAISAL_FALLBACK_ENDPOINTS = [
-  "/employeehrappraisal",
-  "/employeeuhappraisal",
-  "/employeeClosedAppraisalData",
-];
-
 const ratingOrder = {
   "A+": 6,
   A: 5,
@@ -163,26 +157,6 @@ async function fetchJson(path, token, apiMode) {
     throw new Error(`${response.status} ${response.statusText}: ${detail}`);
   }
   return payload;
-}
-
-async function fetchAppraisals(primaryPath, token, apiMode, allowFallback) {
-  const attempts = [primaryPath];
-  if (allowFallback) {
-    const query = primaryPath.includes("?") ? primaryPath.slice(primaryPath.indexOf("?")) : "";
-    attempts.push(...APPRAISAL_FALLBACK_ENDPOINTS.map((endpoint) => `${endpoint}${query}`));
-  }
-
-  const failures = [];
-  for (const path of attempts) {
-    try {
-      const payload = await fetchJson(path, token, apiMode);
-      return { payload, path, failures };
-    } catch (error) {
-      failures.push(`${path}: ${error.message}`);
-    }
-  }
-
-  throw new Error(failures.join(" | "));
 }
 
 function normalizeFeedback(record) {
@@ -624,7 +598,6 @@ function App() {
   const [feedbackRows, setFeedbackRows] = useState([]);
   const [appraisalRows, setAppraisalRows] = useState([]);
   const [errors, setErrors] = useState([]);
-  const [notices, setNotices] = useState([]);
   const [lastFetched, setLastFetched] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeView, setActiveView] = useState("overview");
@@ -657,18 +630,15 @@ function App() {
     }
     setLoading(true);
     setErrors([]);
-    setNotices([]);
     const feedbackPath = ensureApiPath(feedbackEndpoint, "/employeeprojectfeedback");
     const appraisalEndpointPath = ensureApiPath(appraisalsEndpoint, "/appraisals");
     const appraisalPath = pathWithQuery(appraisalEndpointPath, appraisalsQuery);
-    const allowAppraisalFallback = appraisalEndpointPath.split("?")[0] === "/appraisals";
     const [feedbackResult, appraisalsResult] = await Promise.allSettled([
       fetchJson(feedbackPath, token, apiMode),
-      fetchAppraisals(appraisalPath, token, apiMode, allowAppraisalFallback),
+      fetchJson(appraisalPath, token, apiMode),
     ]);
 
     const nextErrors = [];
-    const nextNotices = [];
     let normalizedFeedback = feedbackRows;
     if (feedbackResult.status === "fulfilled") {
       normalizedFeedback = asArray(feedbackResult.value).map(normalizeFeedback);
@@ -679,20 +649,12 @@ function App() {
 
     const nextEmployeeIndex = buildEmployeeIndex(normalizedFeedback);
     if (appraisalsResult.status === "fulfilled") {
-      const { payload, path, failures } = appraisalsResult.value;
-      setAppraisalRows(asArray(payload).map((record) => normalizeAppraisal(record, nextEmployeeIndex)));
-      if (path !== appraisalPath) {
-        nextNotices.push(`/appraisals returned an error, so appraisal data loaded from ${path.split("?")[0]}.`);
-      }
-      if (failures.length && path !== appraisalPath) {
-        nextNotices.push(failures[0]);
-      }
+      setAppraisalRows(asArray(appraisalsResult.value).map((record) => normalizeAppraisal(record, nextEmployeeIndex)));
     } else {
       nextErrors.push(`Appraisals failed: ${appraisalsResult.reason.message}`);
     }
 
     setErrors(nextErrors);
-    setNotices(nextNotices);
     setLastFetched(new Date().toLocaleString());
     setLoading(false);
   }
@@ -886,12 +848,6 @@ function App() {
             {lastFetched ? <Pill tone="good"><CheckCircle2 className="mr-1" size={13} />Fetched {lastFetched}</Pill> : <Pill>Waiting for data</Pill>}
             <Pill>{formatNumber(feedbackRows.length)} feedback rows</Pill>
             <Pill>{formatNumber(appraisalRows.length)} appraisal rows</Pill>
-            {notices.map((notice) => (
-              <Pill key={notice} tone="warn">
-                <AlertTriangle className="mr-1" size={13} />
-                {notice}
-              </Pill>
-            ))}
             {errors.map((error) => (
               <Pill key={error} tone="bad">
                 <AlertTriangle className="mr-1" size={13} />
