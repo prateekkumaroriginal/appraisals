@@ -34,12 +34,7 @@ import {
   YAxis,
 } from "recharts";
 
-const API_MODES = {
-  proxy: import.meta.env.PROD ? "/api/locomo" : "/locomo",
-  direct: "https://apiv6.locomo.io",
-};
-
-const apiModeOptions = import.meta.env.PROD ? ["proxy"] : ["proxy", "direct"];
+const API_BASE = import.meta.env.PROD ? "/api/locomo" : "/locomo";
 
 const ratingOrder = {
   "A+": 6,
@@ -109,8 +104,8 @@ function ensureApiPath(value, fallback) {
   }
 }
 
-async function fetchJson(path, token, apiMode) {
-  const response = await fetch(`${API_MODES[apiMode]}${path}`, {
+async function fetchJson(path, token) {
+  const response = await fetch(`${API_BASE}${path}`, {
     method: "GET",
     headers: {
       Authorization: normalizeToken(token),
@@ -639,7 +634,6 @@ function DistributionBar({ data }) {
 function App() {
   const [themeMode, setThemeMode] = useThemeMode();
   const [token, setToken] = useState(() => sessionStorage.getItem("locomo-token") || "");
-  const [apiMode, setApiMode] = useState("proxy");
   const [feedbackEndpoint, setFeedbackEndpoint] = useState("/employeeprojectfeedback");
   const [appraisalsEndpoint, setAppraisalsEndpoint] = useState("/appraisals");
   const [feedbackRows, setFeedbackRows] = useState([]);
@@ -680,8 +674,8 @@ function App() {
     const feedbackPath = ensureApiPath(feedbackEndpoint, "/employeeprojectfeedback");
     const appraisalPath = ensureApiPath(appraisalsEndpoint, "/appraisals");
     const [feedbackResult, appraisalsResult] = await Promise.allSettled([
-      fetchJson(feedbackPath, token, apiMode),
-      fetchJson(appraisalPath, token, apiMode),
+      fetchJson(feedbackPath, token),
+      fetchJson(appraisalPath, token),
     ]);
 
     const nextErrors = [];
@@ -832,7 +826,7 @@ function App() {
         </header>
 
         <section className="mb-5 rounded-lg border border-slate-200 bg-white p-4 shadow-panel dark:border-slate-800 dark:bg-slate-950">
-          <div className="grid gap-3 lg:grid-cols-[1.4fr_0.7fr_auto] lg:items-end">
+          <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
             <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
               Authorization token
               <input
@@ -843,13 +837,6 @@ function App() {
                 className="h-11 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
               />
             </label>
-            <SelectControl
-              label="API route"
-              icon={Database}
-              value={apiMode}
-              onChange={setApiMode}
-              options={apiModeOptions}
-            />
             <button
               type="button"
               onClick={loadData}
