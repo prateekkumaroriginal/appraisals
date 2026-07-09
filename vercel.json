@@ -1,8 +1,7 @@
 {
-  "rewrites": [
-    {
-      "source": "/locomo/:path*",
-      "destination": "https://apiv6.locomo.io/:path*"
+  "functions": {
+    "api/locomo/[...path].js": {
+      "maxDuration": 60
     }
-  ]
+  }
 }

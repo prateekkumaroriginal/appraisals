@@ -34,7 +34,7 @@ import {
 } from "recharts";
 
 const API_MODES = {
-  proxy: "/locomo",
+  proxy: import.meta.env.PROD ? "/api/locomo" : "/locomo",
   direct: "https://apiv6.locomo.io",
 };
 
