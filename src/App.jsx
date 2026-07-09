@@ -104,46 +104,16 @@ function ensureApiPath(value, fallback) {
   }
 }
 
-function pathWithQuery(path, query) {
-  const trimmed = normalizeQuery(query);
-  if (!trimmed) return path;
-  return path.includes("?") ? `${path}&${trimmed}` : `${path}?${trimmed}`;
-}
-
-function normalizeQuery(query) {
-  const trimmed = query.trim().replace(/^\?/, "");
-  if (!trimmed) return "";
-
-  const fepMatch = trimmed.match(/^fep\s*=\s*([\s\S]*)$/i);
-  const fepValue = fepMatch ? fepMatch[1].trim() : trimmed.startsWith("{") ? trimmed : "";
-  if (fepValue) {
-    try {
-      const compactJson = JSON.stringify(JSON.parse(fepValue));
-      return `fep=${encodeURIComponent(compactJson)}`;
-    } catch {
-      return `fep=${encodeURIComponent(fepValue)}`;
-    }
-  }
-
-  return trimmed
-    .split("&")
-    .filter(Boolean)
-    .map((part) => {
-      const separatorIndex = part.indexOf("=");
-      if (separatorIndex === -1) return encodeURIComponent(part.trim());
-      const key = part.slice(0, separatorIndex).trim();
-      const value = part.slice(separatorIndex + 1).trim();
-      return `${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
-    })
-    .join("&");
-}
-
 async function fetchJson(path, token, apiMode) {
   const response = await fetch(`${API_MODES[apiMode]}${path}`, {
+    method: "GET",
     headers: {
       Authorization: normalizeToken(token),
-      Accept: "application/json",
+      Accept: "application/json, text/plain, */*",
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
     },
+    redirect: "follow",
   });
   const text = await response.text();
   let payload = null;
@@ -594,7 +564,6 @@ function App() {
   const [apiMode, setApiMode] = useState("proxy");
   const [feedbackEndpoint, setFeedbackEndpoint] = useState("/employeeprojectfeedback");
   const [appraisalsEndpoint, setAppraisalsEndpoint] = useState("/appraisals");
-  const [appraisalsQuery, setAppraisalsQuery] = useState("");
   const [feedbackRows, setFeedbackRows] = useState([]);
   const [appraisalRows, setAppraisalRows] = useState([]);
   const [errors, setErrors] = useState([]);
@@ -631,8 +600,7 @@ function App() {
     setLoading(true);
     setErrors([]);
     const feedbackPath = ensureApiPath(feedbackEndpoint, "/employeeprojectfeedback");
-    const appraisalEndpointPath = ensureApiPath(appraisalsEndpoint, "/appraisals");
-    const appraisalPath = pathWithQuery(appraisalEndpointPath, appraisalsQuery);
+    const appraisalPath = ensureApiPath(appraisalsEndpoint, "/appraisals");
     const [feedbackResult, appraisalsResult] = await Promise.allSettled([
       fetchJson(feedbackPath, token, apiMode),
       fetchJson(appraisalPath, token, apiMode),
@@ -816,7 +784,7 @@ function App() {
           </div>
           <details className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
             <summary className="cursor-pointer text-sm font-bold text-slate-700 dark:text-slate-200">Endpoint options</summary>
-            <div className="mt-3 grid gap-3 lg:grid-cols-3">
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
               <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
                 Feedback endpoint
                 <input
@@ -830,15 +798,6 @@ function App() {
                 <input
                   value={appraisalsEndpoint}
                   onChange={(event) => setAppraisalsEndpoint(event.target.value)}
-                  className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-teal-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                />
-              </label>
-              <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
-                Appraisals query string
-                <input
-                  value={appraisalsQuery}
-                  onChange={(event) => setAppraisalsQuery(event.target.value)}
-                  placeholder='Paste fep={...} or just {...}'
                   className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-teal-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                 />
               </label>

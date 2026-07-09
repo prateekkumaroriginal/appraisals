@@ -22,6 +22,10 @@ export default defineConfig({
         target: "https://apiv6.locomo.io",
         changeOrigin: true,
         secure: true,
+        headers: {
+          Origin: "https://v2.locomo.io",
+          Referer: "https://v2.locomo.io/hrm/appraisal/performancemanagement/",
+        },
         rewrite: (path) => path.replace(/^\/locomo/, ""),
       },
     },
