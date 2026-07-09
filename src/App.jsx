@@ -61,6 +61,8 @@ const chartColors = [
   "#475569",
 ];
 
+const chartHoverCursor = { fill: "rgba(15, 118, 110, 0.14)" };
+
 const tablePageSize = 25;
 
 function asArray(payload) {
@@ -856,7 +858,7 @@ function App() {
                     <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.12} />
                     <XAxis dataKey="name" tickLine={false} axisLine={false} />
                     <YAxis tickLine={false} axisLine={false} />
-                    <Tooltip cursor={{ fill: "rgba(15, 118, 110, 0.08)" }} />
+                    <Tooltip cursor={chartHoverCursor} />
                     <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                       {feedbackStats.ratings.map((entry, index) => (
                         <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
@@ -873,7 +875,7 @@ function App() {
                         <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip cursor={chartHoverCursor} />
                   </PieChart>
                 </ResponsiveContainer>
               </ChartPanel>
@@ -918,7 +920,7 @@ function App() {
                     <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.12} />
                     <XAxis type="number" tickLine={false} axisLine={false} />
                     <YAxis dataKey="name" type="category" width={150} tickLine={false} axisLine={false} />
-                    <Tooltip />
+                    <Tooltip cursor={chartHoverCursor} />
                     <Bar dataKey="value" fill="#0f766e" radius={[0, 6, 6, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -929,7 +931,7 @@ function App() {
                     <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.12} />
                     <XAxis dataKey="name" tickLine={false} axisLine={false} />
                     <YAxis tickLine={false} axisLine={false} />
-                    <Tooltip />
+                    <Tooltip cursor={chartHoverCursor} />
                     <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                       {appraisalStats.utilisationBuckets.map((entry, index) => (
                         <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
