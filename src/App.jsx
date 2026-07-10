@@ -271,6 +271,9 @@ function normalizeAppraisal(record, employeeIndex) {
     employeeCode: clean(embeddedEmployee.employee_code || employee.employeeCode),
     employeeLevel: clean(embeddedEmployee.employee_level?.level || employee.employeeLevel),
     resourceLanguage: clean(embeddedEmployee.resource_language?.name || employee.resourceLanguage),
+    officialEmail: clean(
+      embeddedEmployee.official_email_id || record.official_email_id || employee.officialEmail,
+    ),
     feedbackCount: employee.feedbackCount || 0,
     status: clean(record.status, "(blank)"),
     departmentType: clean(record.department_type, "(blank)"),
@@ -494,7 +497,18 @@ function SearchBox({ value, onChange, placeholder }) {
   );
 }
 
-function DataTable({ tableId, title, rows, columns, defaultColumnKeys, search, onSearch, emptyText, onExport }) {
+function DataTable({
+  tableId,
+  title,
+  rows,
+  columns,
+  defaultColumnKeys,
+  search,
+  onSearch,
+  searchPlaceholder = "Search rows",
+  emptyText,
+  onExport,
+}) {
   const storageKey = `locomo-columns-${tableId}`;
   const columnPickerRef = useRef(null);
   const [visibleColumnKeys, setVisibleColumnKeys] = useState(() => {
@@ -596,7 +610,7 @@ function DataTable({ tableId, title, rows, columns, defaultColumnKeys, search, o
         </div>
         <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
           <div className="min-w-0 flex-1 lg:w-80">
-            <SearchBox value={search} onChange={onSearch} placeholder="Search rows" />
+            <SearchBox value={search} onChange={onSearch} placeholder={searchPlaceholder} />
           </div>
           <button
             type="button"
@@ -683,7 +697,10 @@ function DataTable({ tableId, title, rows, columns, defaultColumnKeys, search, o
               <tr key={row.id} className="align-top transition hover:bg-slate-50 dark:hover:bg-slate-900/70">
                 {visibleColumns.map((column) => (
                   <td key={column.key} className="max-w-72 whitespace-nowrap px-4 py-3 text-slate-700 dark:text-slate-200">
-                    <div className="max-w-72 overflow-hidden text-ellipsis">
+                    <div
+                      className="max-w-72 overflow-hidden text-ellipsis"
+                      title={String(column.value(row) ?? "") || undefined}
+                    >
                       {column.render ? column.render(row) : column.value(row)}
                     </div>
                   </td>
@@ -889,6 +906,7 @@ function App() {
 
   const appraisalDefaultColumns = useMemo(() => [
     { key: "employee", label: "Employee", value: employeeLabel, render: (row) => <strong>{employeeLabel(row)}</strong> },
+    { key: "email", label: "Email", value: (row) => row.officialEmail },
     { key: "effective", label: "Effective", value: (row) => row.effectiveDate },
     { key: "department", label: "Department", value: (row) => row.departmentType },
     { key: "rating", label: "Overall", value: (row) => row.overallRating, render: (row) => <Pill tone={row.overallRating === "A+" || row.overallRating === "A" ? "good" : row.overallRating === "(blank)" ? "neutral" : "warn"}>{row.overallRating}</Pill> },
@@ -1154,6 +1172,7 @@ function App() {
               defaultColumnKeys={appraisalDefaultColumnKeys}
               search={appraisalSearch}
               onSearch={setAppraisalSearch}
+              searchPlaceholder="Search rows, including email"
               emptyText="No appraisal rows match the current search and filters."
               onExport={(rows, visibleColumns) => downloadCsv("appraisals.csv", rows, visibleColumns)}
             />
