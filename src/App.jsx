@@ -54,6 +54,8 @@ const overallRatingLabels = {
   C: "DE",
 };
 
+const overallRatingOrder = Object.values(overallRatingLabels);
+
 const chartColors = [
   "#0f766e",
   "#d97706",
@@ -119,6 +121,16 @@ function clean(value, fallback = "") {
 function mapOverallRating(value) {
   const rating = clean(value, "(blank)");
   return overallRatingLabels[rating] || rating;
+}
+
+function overallRatingRank(value) {
+  const index = overallRatingOrder.indexOf(value);
+  return index === -1 ? overallRatingOrder.length : index;
+}
+
+function compareOverallRatings(a, b) {
+  const rankDifference = overallRatingRank(a) - overallRatingRank(b);
+  return rankDifference || String(a).localeCompare(String(b), undefined, { numeric: true });
 }
 
 function flattenRecord(value, prefix = "", output = {}) {
@@ -299,9 +311,9 @@ function normalizeAppraisal(record, employeeIndex) {
     holdTill: shortDate(record.hold_till),
     closedDate: shortDate(record.closed_date),
     overallRating: overall,
-    pmOverallRating: clean(record.pm_overall_rating, "(blank)"),
-    peopleManagerGrade: clean(record.overall_grading_peopleManager, "(blank)"),
-    unitHeadGrade: clean(record.overall_grading_unitHeadFinal, "(blank)"),
+    pmOverallRating: mapOverallRating(record.pm_overall_rating),
+    peopleManagerGrade: mapOverallRating(record.overall_grading_peopleManager),
+    unitHeadGrade: mapOverallRating(record.overall_grading_unitHeadFinal),
     pmOverallScore: numberOrNull(record.pm_overall_score),
     innovationScore: numberOrNull(record.people_manager_innovation_score),
     utilisation: numberOrNull(record.utilisation_perc),
@@ -396,9 +408,9 @@ function formatPercent(value) {
   return `${formatNumber(value, 1)}%`;
 }
 
-function uniqueOptions(rows, key) {
-  return [...new Set(rows.map((row) => clean(row[key])).filter(Boolean))].sort((a, b) =>
-    a.localeCompare(b, undefined, { numeric: true }),
+function uniqueOptions(rows, key, compare) {
+  return [...new Set(rows.map((row) => clean(row[key])).filter(Boolean))].sort(
+    compare || ((a, b) => a.localeCompare(b, undefined, { numeric: true })),
   );
 }
 
@@ -585,8 +597,8 @@ function DataTable({
     if (!column) return rows;
     const direction = sort.direction === "asc" ? 1 : -1;
     return [...rows].sort((a, b) => {
-      const aValue = column.value(a);
-      const bValue = column.value(b);
+      const aValue = column.sortValue ? column.sortValue(a) : column.value(a);
+      const bValue = column.sortValue ? column.sortValue(b) : column.value(b);
       if (typeof aValue === "number" && typeof bValue === "number") return (aValue - bValue) * direction;
       return String(aValue ?? "").localeCompare(String(bValue ?? ""), undefined, { numeric: true }) * direction;
     });
@@ -924,8 +936,8 @@ function App() {
     { key: "email", label: "Email", value: (row) => row.officialEmail },
     { key: "effective", label: "Effective", value: (row) => row.effectiveDate },
     { key: "department", label: "Department", value: (row) => row.departmentType },
-    { key: "rating", label: "Overall", value: (row) => row.overallRating, render: (row) => <Pill tone={row.overallRating === "CE" || row.overallRating === "OE" ? "good" : row.overallRating === "(blank)" ? "neutral" : "warn"}>{row.overallRating}</Pill> },
-    { key: "pmRating", label: "PM Rating", value: (row) => row.pmOverallRating },
+    { key: "rating", label: "Overall", value: (row) => row.overallRating, sortValue: (row) => overallRatingRank(row.overallRating), render: (row) => <Pill tone={row.overallRating === "CE" || row.overallRating === "OE" ? "good" : row.overallRating === "(blank)" ? "neutral" : "warn"}>{row.overallRating}</Pill> },
+    { key: "pmRating", label: "PM Rating", value: (row) => row.pmOverallRating, sortValue: (row) => overallRatingRank(row.pmOverallRating) },
     { key: "pmScore", label: "PM Score", value: (row) => row.pmOverallScore ?? -1, render: (row) => formatNumber(row.pmOverallScore, 2) },
     { key: "utilisation", label: "Utilisation", value: (row) => row.utilisation ?? -1, render: (row) => <span className={row.utilisation > 100 ? "font-bold text-rose-700 dark:text-rose-300" : ""}>{formatPercent(row.utilisation)}</span> },
     { key: "workflow", label: "Workflow", value: (row) => [row.selfDone, row.managerDone, row.peopleManagerDone, row.unitDone, row.payrollDone].filter(Boolean).length, render: (row) => `${[row.selfDone, row.managerDone, row.peopleManagerDone, row.unitDone, row.payrollDone].filter(Boolean).length}/5` },
@@ -1174,7 +1186,7 @@ function App() {
         {activeView === "appraisals" ? (
           <div className="grid min-w-0 gap-4">
             <section className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950 sm:grid-cols-2 lg:grid-cols-4">
-              <SelectControl label="Rating" value={appraisalFilters.rating} onChange={(value) => setAppraisalFilters((current) => ({ ...current, rating: value }))} options={["all", ...uniqueOptions(appraisalRows, "overallRating")]} />
+              <SelectControl label="Rating" value={appraisalFilters.rating} onChange={(value) => setAppraisalFilters((current) => ({ ...current, rating: value }))} options={["all", ...uniqueOptions(appraisalRows, "overallRating", compareOverallRatings)]} />
               <SelectControl label="Department" value={appraisalFilters.departmentType} onChange={(value) => setAppraisalFilters((current) => ({ ...current, departmentType: value }))} options={["all", ...uniqueOptions(appraisalRows, "departmentType")]} />
               <SelectControl label="Status" value={appraisalFilters.status} onChange={(value) => setAppraisalFilters((current) => ({ ...current, status: value }))} options={["all", ...uniqueOptions(appraisalRows, "status")]} />
               <SelectControl label="Utilisation" value={appraisalFilters.utilisation} onChange={(value) => setAppraisalFilters((current) => ({ ...current, utilisation: value }))} options={["all", "Missing", "Zero", "Below 50", "50 to 100", "Above 100"]} />
