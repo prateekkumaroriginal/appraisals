@@ -860,7 +860,9 @@ function App() {
   }
 
   const feedbackStats = useMemo(() => {
-    const ratings = countBy(feedbackRows, "rating");
+    const ratings = countBy(feedbackRows, (row) => mapOverallRating(row.rating)).sort((a, b) =>
+      compareOverallRatings(a.name, b.name),
+    );
     const ranked = feedbackRows.filter((row) => ratingOrder[row.rating] !== undefined);
     const best = ranked.reduce((current, row) => (ratingOrder[row.rating] > ratingOrder[current.rating] ? row : current), ranked[0]);
     const worst = ranked.reduce((current, row) => (ratingOrder[row.rating] < ratingOrder[current.rating] ? row : current), ranked[0]);
@@ -886,7 +888,7 @@ function App() {
       records: appraisalRows.length,
       departments: countBy(appraisalRows, "departmentType"),
       statuses: countBy(appraisalRows, "status"),
-      ratings: countBy(appraisalRows, "overallRating"),
+      ratings: countBy(appraisalRows, "overallRating").sort((a, b) => compareOverallRatings(a.name, b.name)),
       avgUtilisation: average(utilisationValues),
       avgPmScore: average(pmScoreValues),
       utilisation,
@@ -1115,8 +1117,8 @@ function App() {
               <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
                 <h3 className="font-display text-lg font-bold">Feedback extremes</h3>
                 <div className="mt-4 grid gap-3">
-                  <p className="text-sm"><strong>Highest rating:</strong> {feedbackStats.best ? `${employeeLabel(feedbackStats.best)} on ${feedbackStats.best.project} (${feedbackStats.best.rating})` : "-"}</p>
-                  <p className="text-sm"><strong>Lowest rating:</strong> {feedbackStats.worst ? `${employeeLabel(feedbackStats.worst)} on ${feedbackStats.worst.project} (${feedbackStats.worst.rating})` : "-"}</p>
+                  <p className="text-sm"><strong>Highest rating:</strong> {feedbackStats.best ? `${employeeLabel(feedbackStats.best)} on ${feedbackStats.best.project} (${mapOverallRating(feedbackStats.best.rating)})` : "-"}</p>
+                  <p className="text-sm"><strong>Lowest rating:</strong> {feedbackStats.worst ? `${employeeLabel(feedbackStats.worst)} on ${feedbackStats.worst.project} (${mapOverallRating(feedbackStats.worst.rating)})` : "-"}</p>
                   <DistributionBar data={feedbackStats.ratings} />
                 </div>
               </article>
