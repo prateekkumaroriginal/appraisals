@@ -46,6 +46,14 @@ const ratingOrder = {
   NA: 0,
 };
 
+const overallRatingLabels = {
+  "A+": "CE",
+  A: "OE",
+  "B+": "ME",
+  B: "PE",
+  C: "DE",
+};
+
 const chartColors = [
   "#0f766e",
   "#d97706",
@@ -106,6 +114,11 @@ function clean(value, fallback = "") {
   if (value === null || value === undefined) return fallback;
   if (typeof value === "string") return value.trim();
   return value;
+}
+
+function mapOverallRating(value) {
+  const rating = clean(value, "(blank)");
+  return overallRatingLabels[rating] || rating;
 }
 
 function flattenRecord(value, prefix = "", output = {}) {
@@ -263,7 +276,9 @@ function normalizeAppraisal(record, employeeIndex) {
   const embeddedEmployee = typeof record.employee === "object" && record.employee ? record.employee : {};
   const employeeId = embeddedEmployee._id || (typeof record.employee === "string" ? record.employee : "");
   const employee = employeeIndex.get(employeeId) || {};
-  const overall = clean(record.overall_rating || record.overall_grading_unitHeadFinal || record.overall_grading_peopleManager, "(blank)");
+  const overall = mapOverallRating(
+    record.overall_rating || record.overall_grading_unitHeadFinal || record.overall_grading_peopleManager,
+  );
   return {
     id: record._id || record.id || "",
     employeeId,
@@ -909,7 +924,7 @@ function App() {
     { key: "email", label: "Email", value: (row) => row.officialEmail },
     { key: "effective", label: "Effective", value: (row) => row.effectiveDate },
     { key: "department", label: "Department", value: (row) => row.departmentType },
-    { key: "rating", label: "Overall", value: (row) => row.overallRating, render: (row) => <Pill tone={row.overallRating === "A+" || row.overallRating === "A" ? "good" : row.overallRating === "(blank)" ? "neutral" : "warn"}>{row.overallRating}</Pill> },
+    { key: "rating", label: "Overall", value: (row) => row.overallRating, render: (row) => <Pill tone={row.overallRating === "CE" || row.overallRating === "OE" ? "good" : row.overallRating === "(blank)" ? "neutral" : "warn"}>{row.overallRating}</Pill> },
     { key: "pmRating", label: "PM Rating", value: (row) => row.pmOverallRating },
     { key: "pmScore", label: "PM Score", value: (row) => row.pmOverallScore ?? -1, render: (row) => formatNumber(row.pmOverallScore, 2) },
     { key: "utilisation", label: "Utilisation", value: (row) => row.utilisation ?? -1, render: (row) => <span className={row.utilisation > 100 ? "font-bold text-rose-700 dark:text-rose-300" : ""}>{formatPercent(row.utilisation)}</span> },
