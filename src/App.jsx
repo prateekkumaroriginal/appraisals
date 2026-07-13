@@ -70,6 +70,8 @@ const chartColors = [
 const chartHoverCursor = { fill: "rgba(15, 118, 110, 0.14)" };
 
 const tablePageSize = 25;
+const searchDebounceMs = 200;
+const searchTextCache = new WeakMap();
 
 const hiddenRawFieldKeys = new Set([
   "__v",
@@ -415,13 +417,21 @@ function uniqueOptions(rows, key, compare) {
 }
 
 function matchesSearch(row, query) {
-  if (!query.trim()) return true;
-  const needle = query.toLowerCase();
-  const normalizedMatch = Object.entries(row)
-    .filter(([key]) => key !== "rawFlat")
-    .some(([, value]) => String(value ?? "").toLowerCase().includes(needle));
-  if (normalizedMatch) return true;
-  return Object.values(row.rawFlat || {}).some((value) => String(value ?? "").toLowerCase().includes(needle));
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+
+  let searchText = searchTextCache.get(row);
+  if (searchText === undefined) {
+    const normalizedValues = Object.entries(row)
+      .filter(([key]) => key !== "rawFlat")
+      .map(([, value]) => value);
+    searchText = [...normalizedValues, ...Object.values(row.rawFlat || {})]
+      .map((value) => String(value ?? "").toLowerCase())
+      .join("\u0000");
+    searchTextCache.set(row, searchText);
+  }
+
+  return searchText.includes(needle);
 }
 
 function utilisationBucket(value) {
@@ -511,12 +521,24 @@ function SelectControl({ label, icon: Icon = Filter, value, onChange, options })
 }
 
 function SearchBox({ value, onChange, placeholder }) {
+  const [draftValue, setDraftValue] = useState(value);
+
+  useEffect(() => {
+    setDraftValue(value);
+  }, [value]);
+
+  useEffect(() => {
+    if (draftValue === value) return undefined;
+    const timeoutId = window.setTimeout(() => onChange(draftValue), searchDebounceMs);
+    return () => window.clearTimeout(timeoutId);
+  }, [draftValue, onChange, value]);
+
   return (
     <label className="relative block">
       <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
       <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
+        value={draftValue}
+        onChange={(event) => setDraftValue(event.target.value)}
         placeholder={placeholder}
         className="h-11 w-full rounded-md border border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
       />
